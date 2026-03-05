@@ -1,9 +1,499 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <title>Фотогалерея · Адаптивное модальное окно</title>
+    <style>
+        /* СБРОС И БАЗОВЫЕ СТИЛИ */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+
+        /* КОНТЕЙНЕР ГАЛЕРЕИ — ТАБЛИЧНАЯ СЕТКА (TABLE-LIKE GRID) */
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* СТИЛЬ КАРТОЧКИ ФОТО (ЯЧЕЙКА ТАБЛИЦЫ) */
+        .photo-item {
+            list-style: none;
+            background: #fff;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            aspect-ratio: 1 / 1; /* Квадратная ячейка, как таблица */
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+
+        .photo-item:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 16px 30px rgba(0,0,0,0.1);
+            border-color: #007aff;
+        }
+
+        .photo-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;  /* Заполняет ячейку, обрезая лишнее — аккуратные превью */
+            display: block;
+            background: #e9ecf0;
+        }
+
+        /* ЗАГОЛОВОК (ОПЦИОНАЛЬНО) */
+        .info {
+            max-width: 1200px;
+            width: 100%;
+            margin-bottom: 20px;
+            color: #1e293b;
+            font-weight: 400;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .info span {
+            background: #ffffffcc;
+            backdrop-filter: blur(4px);
+            padding: 6px 14px;
+            border-radius: 40px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+        }
+
+        /* --------------------------------------------------- */
+        /* МОДАЛЬНОЕ ОКНО (НА ВЕСЬ ЭКРАН) */
+        /* --------------------------------------------------- */
+        .modal {
+            display: none;          /* Скрыто по умолчанию */
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.95); /* тёмный фон */
+            backdrop-filter: blur(6px);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            padding: 12px;
+            box-sizing: border-box;
+        }
+
+        /* КОНТЕНТ МОДАЛКИ: ИЗОБРАЖЕНИЕ В ЦЕНТРЕ */
+        .modal-content {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            max-width: 1400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+        }
+
+        /* КНОПКИ НАВИГАЦИИ И ЗАКРЫТИЯ */
+        .modal-btn {
+            position: absolute;
+            background: rgba(30, 30, 30, 0.7);
+            backdrop-filter: blur(12px);
+            border: none;
+            color: white;
+            font-size: 2.2rem;
+            width: 64px;
+            height: 64px;
+            border-radius: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.15s;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.15);
+            z-index: 10020;
+            line-height: 1;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .modal-btn:hover {
+            background: rgba(80, 80, 80, 0.9);
+            transform: scale(1.05);
+            border-color: rgba(255,255,255,0.4);
+        }
+
+        .modal-btn:active {
+            transform: scale(0.98);
+        }
+
+        .close-btn {
+            top: 20px;
+            right: 20px;
+            font-size: 2.5rem;
+        }
+
+        .prev-btn {
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .next-btn {
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        /* ПОЛНОЭКРАННОЕ ИЗОБРАЖЕНИЕ */
+        .modal-image {
+            max-width: 95%;
+            max-height: 90vh;
+            object-fit: contain;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+            background: transparent;
+            transition: opacity 0.2s;
+            border: 2px solid rgba(255,255,255,0.1);
+        }
+
+        /* ПОДПИСЬ / СЧЁТЧИК */
+        .modal-caption {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 1.1rem;
+            font-weight: 400;
+            background: linear-gradient(0deg, rgba(0,0,0,0.4), transparent);
+            padding: 25px 20px 15px;
+            pointer-events: none;
+            z-index: 10015;
+            letter-spacing: 0.3px;
+            backdrop-filter: blur(2px);
+        }
+
+        /* МОБИЛЬНАЯ АДАПТАЦИЯ КНОПОК */
+        @media (max-width: 640px) {
+            .modal-btn {
+                width: 48px;
+                height: 48px;
+                font-size: 1.8rem;
+            }
+            .close-btn {
+                top: 12px;
+                right: 12px;
+            }
+            .prev-btn {
+                left: 8px;
+            }
+            .next-btn {
+                right: 8px;
+            }
+            .gallery {
+                grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+                gap: 12px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .gallery {
+                grid-template-columns: repeat(2, 1fr); /* две колонки на узких */
+                gap: 8px;
+            }
+            .photo-item {
+                border-radius: 12px;
+            }
+            .modal-image {
+                max-height: 80vh;
+            }
+        }
+
+        /* ДЛЯ ОЧЕНЬ МАЛЕНЬКИХ ЭКРАНОВ */
+        @media (max-width: 360px) {
+            .gallery {
+                grid-template-columns: 1fr; /* одна колонка */
+            }
+        }
+
+        /* вспомогательный класс для состояния */
+        .no-scroll {
+            overflow: hidden;
+        }
+    </style>
+</head>
 <body>
 
-<h1>My First Heading</h1>
-<p>My first paragraph.</p>
+    <!-- небольшой заголовок (демонстрирует, что галерея рабочая) -->
+    <div class="info">
+        <span>📸  Фотогалерея · нажми на фото</span>
+    </div>
 
+    <!-- ГАЛЕРЕЯ В ВИДЕ ТАБЛИЦЫ (через Grid) -->
+    <ul class="gallery" id="galleryContainer">
+        <!-- фото будут вставлены из js, но можно и сразу статикой. Сделаем динамически + модалка -->
+    </ul>
+
+    <!-- МОДАЛЬНОЕ ОКНО (полный экран) -->
+    <div id="modalOverlay" class="modal" onclick="handleModalBgClick(event)">
+        <!-- Кнопка закрытия -->
+        <button class="modal-btn close-btn" id="closeModalBtn" aria-label="Закрыть" title="Закрыть (Esc)">✕</button>
+
+        <!-- Контейнер с изображением и навигацией -->
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <button class="modal-btn prev-btn" id="prevPhotoBtn" aria-label="Предыдущее" title="Предыдущее">‹</button>
+            
+            <img class="modal-image" id="modalImage" src="" alt="Полноэкранное фото">
+            
+            <button class="modal-btn next-btn" id="nextPhotoBtn" aria-label="Следующее" title="Следующее">›</button>
+        </div>
+
+        <!-- Счётчик / подпись (дополнительно) -->
+        <div class="modal-caption" id="modalCaption"></div>
+    </div>
+
+    <script>
+        (function() {
+            // ---- МАССИВ С ФОТО (ПРИМЕР) - можно заменить на свои ссылки ----
+            const photos = [
+                {
+                    thumbnail: 'https://picsum.photos/id/1015/400/400',  // пейзаж
+                    fullsize: 'https://picsum.photos/id/1015/1200/1200',
+                    alt: 'Горы и туман'
+                },
+                {
+                    thumbnail: 'https://picsum.photos/id/1043/400/400',
+                    fullsize: 'https://picsum.photos/id/1043/1200/1200',
+                    alt: 'Водопад'
+                },
+                {
+                    thumbnail: 'https://picsum.photos/id/106/400/400',
+                    fullsize: 'https://picsum.photos/id/106/1200/1200',
+                    alt: 'Цветущий луг'
+                },
+                {
+                    thumbnail: 'https://picsum.photos/id/20/400/400',
+                    fullsize: 'https://picsum.photos/id/20/1200/1200',
+                    alt: 'Книга и перо'
+                },
+                {
+                    thumbnail: 'https://picsum.photos/id/26/400/400',
+                    fullsize: 'https://picsum.photos/id/26/1200/1200',
+                    alt: 'Улица с графити'
+                },
+                {
+                    thumbnail: 'https://picsum.photos/id/30/400/400',
+                    fullsize: 'https://picsum.photos/id/30/1200/1200',
+                    alt: 'Чашка кофе'
+                },
+                {
+                    thumbnail: 'https://picsum.photos/id/45/400/400',
+                    fullsize: 'https://picsum.photos/id/45/1200/1200',
+                    alt: 'Трамвай'
+                },
+                {
+                    thumbnail: 'https://picsum.photos/id/65/400/400',
+                    fullsize: 'https://picsum.photos/id/65/1200/1200',
+                    alt: 'Море и волны'
+                },
+                {
+                    thumbnail: 'https://picsum.photos/id/84/400/400',
+                    fullsize: 'https://picsum.photos/id/84/1200/1200',
+                    alt: 'Старый дом'
+                },
+                {
+                    thumbnail: 'https://picsum.photos/id/95/400/400',
+                    fullsize: 'https://picsum.photos/id/95/1200/1200',
+                    alt: 'Бокал вина'
+                }
+            ];
+
+            // ---- ЭЛЕМЕНТЫ DOM ----
+            const galleryEl = document.getElementById('galleryContainer');
+            const modalOverlay = document.getElementById('modalOverlay');
+            const modalImage = document.getElementById('modalImage');
+            const modalCaption = document.getElementById('modalCaption');
+            const closeModalBtn = document.getElementById('closeModalBtn');
+            const prevBtn = document.getElementById('prevPhotoBtn');
+            const nextBtn = document.getElementById('nextPhotoBtn');
+
+            let currentIndex = 0;          // индекс активного фото
+            let isModalOpen = false;
+
+            // ---- ЗАПОЛНЯЕМ ГАЛЕРЕЮ (сетка / таблица) ----
+            function renderGallery() {
+                if (!galleryEl) return;
+                // очищаем (на всякий случай)
+                galleryEl.innerHTML = '';
+
+                photos.forEach((photo, index) => {
+                    const li = document.createElement('li');
+                    li.className = 'photo-item';
+                    li.setAttribute('data-index', index);
+                    li.setAttribute('role', 'button');
+                    li.setAttribute('tabindex', '0');
+                    li.setAttribute('aria-label', `Открыть фото ${index+1}: ${photo.alt}`);
+
+                    const img = document.createElement('img');
+                    img.src = photo.thumbnail;
+                    img.alt = photo.alt;
+                    img.loading = 'lazy';   // оптимизация загрузки
+
+                    li.appendChild(img);
+
+                    // Открытие модалки по клику
+                    li.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        openModal(index);
+                    });
+
+                    // Клавиша Enter для доступности
+                    li.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            openModal(index);
+                        }
+                    });
+
+                    galleryEl.appendChild(li);
+                });
+            }
+
+            // ---- ОТКРЫТЬ МОДАЛКУ С КОНКРЕТНЫМ ИНДЕКСОМ ----
+            function openModal(index) {
+                if (!modalOverlay || !photos[index]) return;
+                currentIndex = index;
+                updateModalContent();
+
+                modalOverlay.style.display = 'flex';
+                document.body.classList.add('no-scroll');   // запрет прокрутки фона
+                isModalOpen = true;
+
+                // для iframe / доступности: фокус на кнопку закрытия
+                setTimeout(() => closeModalBtn?.focus(), 80);
+            }
+
+            // ---- ЗАКРЫТЬ МОДАЛКУ ----
+            function closeModal() {
+                if (!modalOverlay) return;
+                modalOverlay.style.display = 'none';
+                document.body.classList.remove('no-scroll');
+                isModalOpen = false;
+            }
+
+            // ---- ОБНОВИТЬ ИЗОБРАЖЕНИЕ В МОДАЛКЕ + СЧЁТЧИК ----
+            function updateModalContent() {
+                if (!photos[currentIndex]) return;
+                const photo = photos[currentIndex];
+                modalImage.src = photo.fullsize;
+                modalImage.alt = photo.alt;
+                modalCaption.textContent = `${currentIndex + 1} / ${photos.length} · ${photo.alt}`;
+            }
+
+            // ---- ПЕРЕКЛЮЧЕНИЕ (ПРЕД/СЛЕД) ----
+            function showPrev() {
+                if (photos.length === 0) return;
+                currentIndex = (currentIndex - 1 + photos.length) % photos.length;
+                updateModalContent();
+            }
+
+            function showNext() {
+                if (photos.length === 0) return;
+                currentIndex = (currentIndex + 1) % photos.length;
+                updateModalContent();
+            }
+
+            // ---- ОБРАБОТЧИК КЛИКА ПО ЗАДНЕМУ ФОНУ (чтобы закрыть) ----
+            function handleModalBgClick(event) {
+                // если клик именно по оверлею (а не по модальному контенту)
+                if (event.target === modalOverlay) {
+                    closeModal();
+                }
+            }
+
+            // ---- КЛАВИШИ: ESC, ВЛЕВО, ВПРАВО ----
+            function onKeyDown(e) {
+                if (!isModalOpen) return;
+                switch (e.key) {
+                    case 'Escape':
+                        closeModal();
+                        e.preventDefault();
+                        break;
+                    case 'ArrowLeft':
+                        showPrev();
+                        e.preventDefault();
+                        break;
+                    case 'ArrowRight':
+                        showNext();
+                        e.preventDefault();
+                        break;
+                }
+            }
+
+            // ---- ИНИЦИАЛИЗАЦИЯ: СТАВИМ СЛУШАТЕЛИ, РЕНДЕРИМ ----
+            function init() {
+                renderGallery();
+
+                // Кнопки
+                closeModalBtn.addEventListener('click', closeModal);
+                prevBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showPrev();
+                });
+                nextBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showNext();
+                });
+
+                // Закрытие по клавише ESC и стрелки
+                window.addEventListener('keydown', onKeyDown);
+
+                // Обработка клика по фону (уже в onclick в разметке, но дополнительно вешаем)
+                modalOverlay.addEventListener('click', handleModalBgClick);
+
+                // Чтобы навигация внутри модалки не закрывала её при клике на кнопки (stopPropagation уже в разметке)
+            }
+
+            // Запускаем после полной загрузки DOM
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', init);
+            } else {
+                init();
+            }
+
+            // Экспортируем функции в глобальную область, если нужно для внешнего доступа (опционально)
+            window.galleryAPI = {
+                openModal,
+                closeModal,
+                showPrev,
+                showNext
+            };
+        })();
+    </script>
+
+    <!-- Доп. информация для встраивания в iframe: фон прозрачный? но пусть будет стильно -->
+    <!-- Если сайт будет в iframe, ему не нужны внешние отступы body, но они уже учтены адаптивно -->
 </body>
 </html>
